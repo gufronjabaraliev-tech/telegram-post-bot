@@ -17,8 +17,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "9196597210:AAHChWRsxuT7drlWweLWHGv5gK7XaeXt7
 PORT = int(os.getenv("PORT", 8000))
 HOST = os.getenv("HOST", "0.0.0.0")
 
-# Mini App URL (Cloudflare Tunnel live public HTTPS URL)
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://partial-feeding-baker-discovery.trycloudflare.com")
+# Mini App URL (Render permanent 24/7 HTTPS URL)
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://telegram-post-bot-odu8.onrender.com")
 
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
