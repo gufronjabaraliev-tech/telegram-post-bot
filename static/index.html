@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Telegram Post & Schedule Mini App</title>
+  <!-- Telegram WebApp JS SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-title">Post Studio</div>
+        <div class="brand-sub">Kanal boshqaruvi & Avto-post</div>
+      </div>
+    </div>
+    <div id="user-badge" class="badge">Mehmon</div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="tab-navigation">
+    <button class="tab-btn active" id="tab-editor-btn" onclick="switchTab('editor')">
+      ✍️ Post
+    </button>
+    <button class="tab-btn" id="tab-templates-btn" onclick="switchTab('templates')">
+      📑 Shablonlar
+    </button>
+    <button class="tab-btn" id="tab-scheduled-btn" onclick="switchTab('scheduled')">
+      📅 Rejalashtirilgan <span id="scheduled-counter" class="badge" style="display:none; margin-left:2px;">0</span>
+    </button>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- TAB 1: POST EDITOR -->
+  <main id="view-editor" class="container">
+    
+    <!-- Shablonni yuklash tezkor bloki -->
+    <div class="section-card" id="quick-template-bar" style="display:none; padding: 10px 14px; margin-bottom: 10px; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2);">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <span style="font-size:12px; font-weight:600; color:var(--link-color);">📑 Shablondan yuklash:</span>
+        <select id="editor-template-select" class="select-input" style="padding: 6px 10px; font-size:13px; width:auto; flex:1;" onchange="onLoadTemplateToEditor(this.value)">
+          <option value="">-- Tanlang --</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 1. Kanal tanlash -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>📢 Kanal / Guruh</span>
+        <span id="channel-status" class="badge" style="display:none;"></span>
+      </div>
+
+      <!-- Quick Native Picker Buttons -->
+      <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+        <button type="button" class="fmt-btn" style="flex: 1; justify-content: center; background: rgba(59, 130, 246, 0.15); border-color: var(--button-color); color: var(--link-color); padding: 8px 10px;" onclick="openTelegramChannelPicker('channel')">
+          📢 O'z kanalimni tanlash
+        </button>
+        <button type="button" class="fmt-btn" style="flex: 1; justify-content: center; background: rgba(139, 92, 246, 0.15); border-color: #8b5cf6; color: #c084fc; padding: 8px 10px;" onclick="openTelegramChannelPicker('group')">
+          👥 O'z guruhimni tanlash
+        </button>
+      </div>
+
+      <!-- Saved Channels Dropdown -->
+      <div class="input-group" id="saved-channels-group" style="display:none; margin-bottom: 8px;">
+        <select id="saved-channels-select" class="select-input" onchange="onSelectSavedChannel()">
+          <option value="">-- Saqlangan kanallar --</option>
+        </select>
+        <button type="button" class="action-btn-sm" style="padding: 0 10px;" onclick="loadSavedChannels()" title="Yangilash">🔄</button>
+      </div>
+
+      <div class="input-group">
+        <input type="text" id="channel-input" class="text-input" placeholder="@kanal_nomi yoki -100..." value="">
+        <button class="action-btn-sm" type="button" onclick="verifyChannel()">Tekshirish</button>
+      </div>
+      <div style="font-size: 11px; color: var(--hint-color);">
+        * <b>Tugmani bosing:</b> Telegram kanallaringiz ro'yxatini ko'rsatadi va bot darhol unga admin qilib ulanadi!
+      </div>
+    </div>
+
+    <!-- 2. 1 dan 10tagacha rasm yuklash -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>📸 Rasmlar</span>
+        <span class="badge" id="image-count-badge">0 / 10 ta rasm</span>
+      </div>
+
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
+        <div class="upload-icon">🖼️</div>
+        <div class="upload-text">1 dan 10 tagacha rasm tanlang yoki tashlang</div>
+        <div class="upload-sub">Ko'p rasm tanlasangiz, Telegramda albom (galereya) sifatida chiqadi</div>
+      </div>
+
+      <!-- Uploaded Images Thumbnails -->
+      <div class="image-grid" id="image-grid"></div>
+    </div>
+
+    <!-- 3. Post matni va formatlash -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>✍️ Post matni</span>
+        <span class="badge" id="caption-type-badge">Matn</span>
+      </div>
+
+      <!-- Formatting toolbar -->
+      <div class="format-bar">
+        <button type="button" class="fmt-btn" onclick="applyFormat('b')"><b>B</b> Qalin</button>
+        <button type="button" class="fmt-btn" onclick="applyFormat('i')"><i>I</i> Kursiv</button>
+        <button type="button" class="fmt-btn" onclick="applyFormat('u')"><u>U</u> Tagchiziq</button>
+        <button type="button" class="fmt-btn" onclick="applyFormat('s')"><s>S</s> O'chirilgan</button>
+        <button type="button" class="fmt-btn" onclick="applyFormat('code')"><code>&lt;&gt;</code> Kod</button>
+        <button type="button" class="fmt-btn" onclick="addLinkPrompt()">🔗 Havola</button>
+      </div>
+
+      <textarea id="post-text" class="post-textarea" placeholder="Post matnini bu yerga yozing..." oninput="updatePreview()"></textarea>
+      
+      <div class="char-counter">
+        <span id="char-count">0</span> / <span id="char-limit">1024</span> belgi
+      </div>
+    </div>
+
+    <!-- 4. Komplektatsiyalar (Interactive Buttons / Widgets) -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>⚙️ Komplektatsiyalar & Tugmalar</span>
+      </div>
+
+      <!-- A. Reaksiyalar (Loyiha / Like tugmalari) -->
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <div class="toggle-icon">👍</div>
+          <div>
+            <div class="toggle-title">Reaksiyalar (Like/Dislike)</div>
+            <div class="toggle-desc">O'quvchilar ovoz berishi uchun emoji tugmalar</div>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-reactions" checked onchange="toggleReactionsBox()">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="sub-config-box open" id="reactions-box">
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px;">Qo'shiladigan emojilar:</div>
+        <div class="emoji-picker-row" id="emoji-picker">
+          <div class="emoji-chip selected" onclick="toggleEmojiChip(this, '👍')">👍</div>
+          <div class="emoji-chip selected" onclick="toggleEmojiChip(this, '❤️')">❤️</div>
+          <div class="emoji-chip selected" onclick="toggleEmojiChip(this, '🔥')">🔥</div>
+          <div class="emoji-chip" onclick="toggleEmojiChip(this, '👏')">👏</div>
+          <div class="emoji-chip" onclick="toggleEmojiChip(this, '👎')">👎</div>
+          <div class="emoji-chip" onclick="toggleEmojiChip(this, '🤩')">🤩</div>
+          <div class="emoji-chip" onclick="toggleEmojiChip(this, '🎉')">🎉</div>
+        </div>
+      </div>
+
+      <!-- B. Ulashish (Share) tugmasi -->
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <div class="toggle-icon">↗️</div>
+          <div>
+            <div class="toggle-title">Postni ulashish</div>
+            <div class="toggle-desc">Do'stlarga va guruhlarga 1 bosishda jo'natish</div>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-share" checked onchange="toggleSubBox('share-box', this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="sub-config-box open" id="share-box">
+        <div class="input-group">
+          <input type="text" id="share-btn-text" class="text-input" placeholder="Tugma matni" value="↗️ Ulashish" oninput="updatePreview()">
+        </div>
+        <input type="text" id="share-custom-text" class="text-input" placeholder="Ulashishda qo'shiladigan matn (ixtiyoriy)">
+      </div>
+
+      <!-- C. Izohlar (Comments) tugmasi -->
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <div class="toggle-icon">💬</div>
+          <div>
+            <div class="toggle-title">Izohlar / Kommentariya</div>
+            <div class="toggle-desc">Muhokama guruhi yoki chat havolasi</div>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-comments" onchange="toggleSubBox('comments-box', this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="sub-config-box" id="comments-box">
+        <div class="input-group">
+          <input type="text" id="comment-btn-text" class="text-input" placeholder="Tugma matni" value="💬 Izohlarni o'qish" oninput="updatePreview()">
+        </div>
+        <input type="text" id="comment-url" class="text-input" placeholder="Guruh/Muhokama havolasi (https://t.me/...)">
+      </div>
+
+      <!-- D. Maxsus havolalar (Custom URL Buttons) -->
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <div class="toggle-icon">🔗</div>
+          <div>
+            <div class="toggle-title">Maxsus havolalar</div>
+            <div class="toggle-desc">Veb-sayt yoki botga o'tish tugmalari</div>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-custom-btn" onchange="toggleSubBox('custom-btn-box', this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="sub-config-box" id="custom-btn-box">
+        <div id="custom-buttons-list"></div>
+        <button type="button" class="fmt-btn" style="width: 100%; justify-content: center; margin-top: 6px;" onclick="addCustomButtonRow()">
+          ➕ Havola tugmasi qo'shish
+        </button>
+      </div>
+
+      <!-- E. Qo'shimcha parametrlar -->
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <div class="toggle-icon">📌</div>
+          <div>
+            <div class="toggle-title">Kanalga qadash (Pin)</div>
+            <div class="toggle-desc">Chop etilgach xabarni qadab qo'yish</div>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-pin">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <div class="toggle-icon">🔕</div>
+          <div>
+            <div class="toggle-title">Ovozsiz yuborish</div>
+            <div class="toggle-desc">Obunachilarga bildirishnomasiz joylash</div>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-silent">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+    </div>
+
+    <!-- 5. Jonli Telegram Ko'rinishi (Live Telegram Preview) -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>👁️ Telegramda qanday ko'rinadi</span>
+        <span class="badge">Jonli ko'rinish</span>
+      </div>
+
+      <div class="telegram-preview">
+        <div class="preview-header">
+          <div class="preview-avatar" id="prev-avatar">📢</div>
+          <div>
+            <div class="preview-channel-name" id="prev-channel-name">@kanal_nomi</div>
+            <div style="font-size: 11px; color: var(--hint-color);">Kanal postining oldindan ko'rinishi</div>
+          </div>
+        </div>
+
+        <div class="preview-media-container" id="prev-media-box" style="display:none;"></div>
+        <div class="preview-text-content" id="prev-text-box">Post matni bu yerda ko'rinadi...</div>
+
+        <!-- Inline buttons preview -->
+        <div class="preview-inline-keyboard" id="prev-buttons-box"></div>
+      </div>
+    </div>
+
+    <!-- 6. Yuborish / Rejalashtirish Tanlovi -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>⏰ Joylash vaqti</span>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+        <label style="flex: 1; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; cursor: pointer; border: 1px solid var(--card-border);">
+          <input type="radio" name="publish_mode" value="now" checked onchange="togglePublishMode()">
+          <span style="font-weight: 600; font-size: 14px;">⚡ Hozir joylash</span>
+        </label>
+        <label style="flex: 1; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; cursor: pointer; border: 1px solid var(--card-border);">
+          <input type="radio" name="publish_mode" value="schedule" onchange="togglePublishMode()">
+          <span style="font-weight: 600; font-size: 14px;">📅 Rejalashtirish</span>
+        </label>
+      </div>
+
+      <!-- Schedule inputs -->
+      <div id="schedule-inputs" style="display: none;">
+        <div class="input-group">
+          <input type="datetime-local" id="schedule-datetime" class="text-input">
+        </div>
+        <div style="font-size: 11px; color: var(--hint-color);">
+          * Belgilangan vaqt yetib kelganda bot postni avtomatik ravishda kanalga joylaydi.
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Action Button -->
+    <div class="bottom-bar">
+      <button class="main-action-btn" id="btn-submit" onclick="submitPost()">
+        <span id="btn-submit-icon">🚀</span>
+        <span id="btn-submit-text">Kanalga joylash</span>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- TAB 2: TEMPLATES & AUTO-POSTING (YANGI BO'LIM) -->
+  <main id="view-templates" class="container" style="display: none; padding-bottom: 30px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <div>
+        <h3 style="font-size: 17px; font-weight:700;">📑 Shablonlar & Avto-post</h3>
+        <p style="font-size: 12px; color: var(--hint-color);">Doimiy davriy postlar jadvali</p>
+      </div>
+      <button class="action-btn-sm" style="padding: 10px 14px;" onclick="openCreateTemplateModal()">➕ Yangi shablon</button>
+    </div>
+
+    <!-- Shablon yaratish formasi (Akkordeon/Modal) -->
+    <div class="section-card" id="template-create-card" style="display: none; border-color: var(--button-color);">
+      <div class="section-title">
+        <span>✨ Yangi shablon / Doimiy avto-post</span>
+        <button type="button" class="del-btn" style="position:static; width:22px; height:22px;" onclick="closeCreateTemplateCard()">×</button>
+      </div>
+
+      <div class="input-group">
+        <input type="text" id="tpl-name" class="text-input" placeholder="Shablon nomi (masalan: Tongi salom yoki Reklama)">
+      </div>
+
+      <div class="input-group">
+        <input type="text" id="tpl-channel" class="text-input" placeholder="Biriktirilgan kanal (@kanal_nomi)">
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 12px; font-weight:600; margin-bottom: 4px;">Post matni:</div>
+        <textarea id="tpl-text" class="post-textarea" style="height: 100px;" placeholder="Post matnini yozing... Dinamik teglar: {sana}, {vaqt}, {kun}, {oy}, {yil}"></textarea>
+        <div style="font-size: 11px; color: var(--hint-color); margin-top: 4px;">
+          * Dinamik teglar post chiqqanda avtomatik joriy sana va vaqtga aylanadi!
+        </div>
+      </div>
+
+      <!-- Avto-yuborish parametrlari -->
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <div class="toggle-icon">🔄</div>
+          <div>
+            <div class="toggle-title">Doimiy avto-yuborish</div>
+            <div class="toggle-desc">Shablon asosida avtomatik davriy post chiqarish</div>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="tpl-is-recurring" checked onchange="toggleRecurringOptions()">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div id="tpl-recurring-options" style="margin-top: 10px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 12px;">
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px;">Davriylik turi:</div>
+        
+        <select id="tpl-interval-type" class="select-input" style="margin-bottom: 10px;" onchange="onIntervalTypeChange()">
+          <option value="daily">Har kuni belgilangan soatda</option>
+          <option value="interval_hours">Har X soatda bir marta</option>
+          <option value="interval_minutes">Har X daqiqada bir marta (Test uchun)</option>
+        </select>
+
+        <div id="tpl-daily-time-box">
+          <label style="font-size: 12px; color: var(--hint-color);">Har kuni qaysi vaqtda:</label>
+          <input type="time" id="tpl-daily-time" class="text-input" value="09:00">
+        </div>
+
+        <div id="tpl-interval-val-box" style="display: none;">
+          <label style="font-size: 12px; color: var(--hint-color);" id="tpl-interval-label">Har necha soatda:</label>
+          <input type="number" id="tpl-interval-value" class="text-input" min="1" max="168" value="3">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button type="button" class="action-btn-sm" style="flex:1; padding: 12px;" onclick="saveTemplateFromForm()">💾 Shablonni saqlash</button>
+        <button type="button" class="btn-small-del" style="padding: 12px;" onclick="closeCreateTemplateCard()">Bekor qilish</button>
+      </div>
+    </div>
+
+    <!-- Saved Templates List -->
+    <div id="templates-list-container">
+      <div style="text-align: center; color: var(--hint-color); padding: 40px 20px;">
+        Yuklanmoqda...
+      </div>
+    </div>
+
+  </main>
+
+  <!-- TAB 3: SCHEDULED POSTS LIST -->
+  <main id="view-scheduled" class="container" style="display: none; padding-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 style="font-size: 16px;">Rejalashtirilgan postlar ro'yxati</h3>
+      <button class="action-btn-sm" style="padding: 6px 12px;" onclick="loadScheduledPosts()">🔄 Yangilash</button>
+    </div>
+
+    <div id="scheduled-posts-list">
+      <div style="text-align: center; color: var(--hint-color); padding: 40px 20px;">
+        Yuklanmoqda...
+      </div>
+    </div>
+  </main>
+
+  <!-- App JS -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
